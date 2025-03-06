@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+
+    bookingSystem:
+        container_name: bookingSystem
+        working_dir: /var/www/html
+        image: node:23.7.0-alpine
+        volumes:
+            - .:/var/www/html
+        ports:
+            - "3000:3000"
+        command: npm run start
