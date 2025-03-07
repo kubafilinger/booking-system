@@ -1,13 +1,14 @@
 version: '3.8'
 
 services:
-
     bookingSystem:
         container_name: bookingSystem
         working_dir: /var/www/html
         image: node:23.7.0-alpine
         volumes:
             - .:/var/www/html
+        env_file:
+            - ./.env
         ports:
             - "3000:3000"
-        command: npm run start
+        command: npm run start:dev
