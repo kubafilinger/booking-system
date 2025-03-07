@@ -4,9 +4,11 @@ import { AppService } from './app.service';
 import { TaskModule } from './modules/task/task.module';
 import { LoggerModule } from 'nestjs-pino';
 import { CqrsModule } from '@nestjs/cqrs';
+import { MongooseModule } from '@nestjs/mongoose';
 
 @Module({
   imports: [
+    MongooseModule.forRoot('mongodb://mongo/booking-system'),
     LoggerModule.forRootAsync({
       useFactory: () => ({
         pinoHttp: {

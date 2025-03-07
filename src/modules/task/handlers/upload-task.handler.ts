@@ -2,6 +2,8 @@ import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { UploadTaskCommand } from './upload-task.command';
 import { TaskRepository } from '../task.repository';
+import { Task } from '../models/task.model';
+import { extname } from 'path';
 
 @CommandHandler(UploadTaskCommand)
 export class UploadTaskHandler implements ICommandHandler<UploadTaskCommand> {
@@ -16,12 +18,12 @@ export class UploadTaskHandler implements ICommandHandler<UploadTaskCommand> {
 
     const { file } = command;
 
-    // TODO: file validation
+    const task = Task.createForFile(file.path, extname(file.originalname));
 
-    const taskId = await this.taskRepository.save(file.path);
+    await this.taskRepository.save(task);
 
     // TODO: send on queue
 
-    return taskId;
+    return task.getId();
   }
 }

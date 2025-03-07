@@ -9,6 +9,22 @@ services:
             - .:/var/www/html
         env_file:
             - ./.env
+        depends_on:
+            - mongo
         ports:
             - "3000:3000"
         command: npm run start:dev
+
+    
+    mongo:
+        container_name: mongo
+        image: mongo:8.0.5
+        restart: unless-stopped
+        volumes:
+            - data:/data/db
+        ports:
+            - 27017:27017
+
+volumes:
+    data:
+        driver: local
