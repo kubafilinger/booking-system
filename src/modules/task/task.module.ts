@@ -5,9 +5,13 @@ import { UploadTaskHandler } from './handlers/upload-task.handler';
 import { MongooseModule } from '@nestjs/mongoose';
 import { TaskModel, TaskSchema } from './models/task.schema';
 import { GetTaskStatusHandler } from './handlers/get-task-status.handler';
+import { BullModule } from '@nestjs/bullmq';
 
 @Module({
   imports: [
+    BullModule.registerQueue({
+      name: 'tasks',
+    }),
     MongooseModule.forFeature([
       {
         name: TaskModel.name,

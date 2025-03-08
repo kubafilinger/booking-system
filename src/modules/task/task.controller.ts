@@ -15,9 +15,9 @@ import { v1 as uuid } from 'uuid';
 import { extname } from 'path';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
-import { UploadTaskCommand } from './handlers/upload-task.command';
 import { GetTaskStatusDto } from './query-params/get-task-status.dto';
 import { GetTaskStatusQuery } from './queries/get-task-status.query';
+import { UploadTaskCommand } from './commands/upload-task.command';
 
 @Controller('tasks')
 export class TaskController {
