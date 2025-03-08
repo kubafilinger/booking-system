@@ -2,7 +2,7 @@ import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { ProcessFileCommand } from '../commands/process-file.command';
 import { ReservationRepository } from '../reservation.repository';
-import * as Xlsx from 'xlsx';
+import * as ExcelJS from 'exceljs';
 import * as fs from 'fs';
 import { ReservationDto } from '../dtos/reservation.dto';
 import { plainToInstance } from 'class-transformer';
@@ -24,10 +24,12 @@ export class ProcessFileHandler implements ICommandHandler<ProcessFileCommand> {
 
     const { taskId, filePath } = command;
 
-    const fileBuffer = await fs.promises.readFile(filePath); // TODO: change it on chunks
-    const workbook = Xlsx.read(fileBuffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
+    const stream = fs.createReadStream(filePath);
+    const workbook = new ExcelJS.Workbook();
+
+    await workbook.xlsx.read(stream);
+
+    const sheet = workbook.worksheets[0];
 
     if (!sheet) {
       this.logger.trace(`File not found ${filePath}`);
@@ -35,75 +37,60 @@ export class ProcessFileHandler implements ICommandHandler<ProcessFileCommand> {
     }
 
     const CHUNK_SIZE = 100;
-    let rows: ReservationDto[] = [];
-    let rowIndex = 2;
+    let reservations: ReservationDto[] = [];
+    let isError: boolean = false;
 
-    const range = Xlsx.utils.decode_range(sheet['!ref'] || '');
+    sheet.eachRow(async (row, rowNumber) => {
+      if (rowNumber === 1) return;
 
-    for (let row = range.s.r + 1; row <= range.e.r; row++) {
-      const rowData = {};
+      const reservationDto = plainToInstance(ReservationDto, {
+        reservationId: row.getCell(1).value?.toString(),
+        guestName: row.getCell(2).value,
+        status: row.getCell(3).value?.toString(),
+        checkInDate: new Date(row.getCell(4).value as string),
+        checkOutDate: new Date(row.getCell(5).value as string),
+      });
 
-      for (let cell = range.s.c; cell <= range.e.c; cell++) {
-        const cellRef = Xlsx.utils.encode_cell({ r: row, c: cell });
+      const validationErrors = await validate(reservationDto);
 
-        rowData[cell] = sheet[cellRef] ? sheet[cellRef].v : null;
-      }
-      const [reservation, errors] = await this.createAndValidateDto(rowData);
+      if (validationErrors.length) {
+        const errors = validationErrors.map((err) =>
+          Object.values(err.constraints || {}).join(', '),
+        );
 
-      if (errors.length) {
         this.logger.trace(
           errors,
-          `Reservation ${reservation.reservationId} has errors`,
+          `Reservation ${reservationDto.reservationId} has errors`,
         );
         this.eventBus.publish(
           new ReservationProcessFailedEvent(
             taskId,
-            reservation.reservationId,
-            rowIndex,
+            reservationDto.reservationId ?? 'unknown',
+            rowNumber,
             errors,
           ),
         );
 
-        rowIndex++;
-        continue;
+        isError = true;
+        return;
       }
 
-      rows.push(reservation);
+      reservations.push(reservationDto);
 
-      if (rows.length >= CHUNK_SIZE) {
-        await this.processChunk(rows);
-        rows = [];
+      if (reservations.length >= CHUNK_SIZE) {
+        await this.processChunk(reservations);
+        reservations = [];
       }
-      rowIndex++;
-    }
-
-    if (rows.length > 0) {
-      await this.processChunk(rows);
-    }
-  }
-
-  private async createAndValidateDto(
-    rowData,
-  ): Promise<[ReservationDto, string[]]> {
-    const reservationDto = plainToInstance(ReservationDto, {
-      reservationId: rowData[0]?.toString(),
-      guestName: rowData[1],
-      status: rowData[2]?.toLowerCase(),
-      checkInDate: new Date(rowData[3]),
-      checkOutDate: new Date(rowData[4]),
     });
 
-    const errors: string[] = [];
-
-    const validationErrors = await validate(reservationDto);
-
-    if (validationErrors.length > 0) {
-      validationErrors.forEach((err) =>
-        errors.push(Object.values(err.constraints || {}).join(', ')),
-      );
+    if (reservations.length > 0) {
+      await this.processChunk(reservations);
     }
 
-    return [reservationDto, errors];
+    if (isError) {
+      throw new Error('Completed with errors. Get report to see errors');
+    }
+
   }
 
   private async processChunk(rows: ReservationDto[]) {

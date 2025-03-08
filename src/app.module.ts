@@ -1,6 +1,4 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { TaskModule } from './modules/task/task.module';
 import { LoggerModule } from 'nestjs-pino';
 import { CqrsModule } from '@nestjs/cqrs';
@@ -41,7 +39,5 @@ import { ReservationModule } from './modules/reservation/reservation.module';
     TaskModule,
     ReservationModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}

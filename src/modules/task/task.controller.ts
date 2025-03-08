@@ -16,6 +16,7 @@ import { Response } from 'express';
 import { diskStorage } from 'multer';
 import { v1 as uuid } from 'uuid';
 import { extname } from 'path';
+import * as fs from 'fs';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { GetTaskStatusDto } from './query-params/get-task-status.dto';
@@ -24,6 +25,7 @@ import { UploadTaskCommand } from './commands/upload-task.command';
 import { GetTaskReportDto } from './query-params/get-task-report.dto';
 import { GetTaskReportQuery } from './queries/get-task-report.query';
 import { ValidationError } from 'src/common/errors/validation.error';
+import { Report } from './models/report.types';
 
 @Controller('tasks')
 export class TaskController {
@@ -59,7 +61,13 @@ export class TaskController {
         taskId: await this.commandBus.execute(command),
       });
     } catch (e) {
-      // TODO: remove file from disc
+      try {
+        await fs.unlinkSync(file.path);
+      } catch (error) {
+        this.logger.error(error, `Error when removing file ${file.path}`);
+        
+        throw new InternalServerErrorException('Something went wrong');
+      }
 
       if (e instanceof ValidationError) {
         this.logger.info(e.message);
@@ -98,16 +106,17 @@ export class TaskController {
   }
 
   @Get('report/:id')
-  async getTaskReport(
-    @Param() { id }: GetTaskReportDto,
-    @Res() response: Response,
-  ) {
+  async getTaskReport(@Param() { id }: GetTaskReportDto, @Res() res: Response) {
     try {
       const query = new GetTaskReportQuery(id);
+      const reports = await this.queryBus.execute(query);
+      const response: Report[] = reports.map((report) => ({
+        reservationId: report.reservationId,
+        row: report.row,
+        errors: report.errors,
+      }));
 
-      return response
-        .status(HttpStatus.OK)
-        .json(await this.queryBus.execute(query));
+      return res.status(HttpStatus.OK).json(response);
     } catch (e) {
       if (e instanceof NotFoundException) {
         this.logger.info(e.message);
