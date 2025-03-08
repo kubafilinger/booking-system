@@ -1,4 +1,4 @@
-import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
+import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { ProcessFileCommand } from '../commands/process-file.command';
 import { ReservationRepository } from '../reservation.repository';
@@ -7,12 +7,8 @@ import * as fs from 'fs';
 import { ReservationDto } from '../dtos/reservation.dto';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { ReservationStatus } from '../models/reservation.model';
-
-export type RowError = {
-  row: number;
-  errors: string[];
-};
+import { ReservationStatus } from '../models/reservation.types';
+import { ReservationProcessFailedEvent } from 'src/modules/task/events/reservation-process-failed.event';
 
 @CommandHandler(ProcessFileCommand)
 export class ProcessFileHandler implements ICommandHandler<ProcessFileCommand> {
@@ -20,6 +16,7 @@ export class ProcessFileHandler implements ICommandHandler<ProcessFileCommand> {
     @InjectPinoLogger(ProcessFileHandler.name)
     private readonly logger: PinoLogger,
     private readonly reservationRepository: ReservationRepository,
+    private readonly eventBus: EventBus,
   ) {}
 
   async execute(command: ProcessFileCommand): Promise<any> {
@@ -51,17 +48,23 @@ export class ProcessFileHandler implements ICommandHandler<ProcessFileCommand> {
 
         rowData[cell] = sheet[cellRef] ? sheet[cellRef].v : null;
       }
-      const [reservation, errors] = await this.createAndValidateDto(
-        rowData,
-        rowIndex,
-      );
+      const [reservation, errors] = await this.createAndValidateDto(rowData);
 
       if (errors.length) {
         this.logger.trace(
           errors,
           `Reservation ${reservation.reservationId} has errors`,
         );
-        // todo: create report with errror
+        this.eventBus.publish(
+          new ReservationProcessFailedEvent(
+            taskId,
+            reservation.reservationId,
+            rowIndex,
+            errors,
+          ),
+        );
+
+        rowIndex++;
         continue;
       }
 
@@ -81,8 +84,7 @@ export class ProcessFileHandler implements ICommandHandler<ProcessFileCommand> {
 
   private async createAndValidateDto(
     rowData,
-    index,
-  ): Promise<[ReservationDto, RowError[]]> {
+  ): Promise<[ReservationDto, string[]]> {
     const reservationDto = plainToInstance(ReservationDto, {
       reservationId: rowData[0]?.toString(),
       guestName: rowData[1],
@@ -91,17 +93,14 @@ export class ProcessFileHandler implements ICommandHandler<ProcessFileCommand> {
       checkOutDate: new Date(rowData[4]),
     });
 
-    const errors: RowError[] = [];
+    const errors: string[] = [];
 
     const validationErrors = await validate(reservationDto);
 
     if (validationErrors.length > 0) {
-      errors.push({
-        row: index,
-        errors: validationErrors.map((err) =>
-          Object.values(err.constraints || {}).join(', '),
-        ),
-      });
+      validationErrors.forEach((err) =>
+        errors.push(Object.values(err.constraints || {}).join(', ')),
+      );
     }
 
     return [reservationDto, errors];

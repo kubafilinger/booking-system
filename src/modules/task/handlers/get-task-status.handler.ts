@@ -1,8 +1,9 @@
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { GetTaskStatusQuery } from '../queries/get-task-status.query';
-import { TaskRepository } from '../task.repository';
+import { TaskRepository } from '../repositories/task.repository';
 import { Task } from '../models/task.model';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
+import { NotFoundException } from '@nestjs/common';
 
 @QueryHandler(GetTaskStatusQuery)
 export class GetTaskStatusHandler implements IQueryHandler<GetTaskStatusQuery> {
@@ -15,10 +16,11 @@ export class GetTaskStatusHandler implements IQueryHandler<GetTaskStatusQuery> {
   async execute(query: GetTaskStatusQuery): Promise<Task> {
     this.logger.info(query, `Handle get task status query`);
 
-    const task = await this.taskRepository.findById(query.taskId);
+    const { taskId } = query;
+    const task = await this.taskRepository.findById(taskId);
 
     if (!task) {
-      throw new Error('Not found');
+      throw new NotFoundException(`Not found task with id: "${taskId}"`);
     }
 
     return task;

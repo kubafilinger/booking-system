@@ -1,7 +1,10 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   HttpStatus,
+  InternalServerErrorException,
+  NotFoundException,
   Param,
   Post,
   Res,
@@ -18,6 +21,9 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { GetTaskStatusDto } from './query-params/get-task-status.dto';
 import { GetTaskStatusQuery } from './queries/get-task-status.query';
 import { UploadTaskCommand } from './commands/upload-task.command';
+import { GetTaskReportDto } from './query-params/get-task-report.dto';
+import { GetTaskReportQuery } from './queries/get-task-report.query';
+import { ValidationError } from 'src/common/errors/validation.error';
 
 @Controller('tasks')
 export class TaskController {
@@ -53,11 +59,17 @@ export class TaskController {
         taskId: await this.commandBus.execute(command),
       });
     } catch (e) {
-      return response.status(HttpStatus.BAD_REQUEST).json({
-        error: {
-          message: e.message,
-        },
-      });
+      // TODO: remove file from disc
+
+      if (e instanceof ValidationError) {
+        this.logger.info(e.message);
+
+        throw new BadRequestException(e.message);
+      }
+
+      this.logger.error(e.message);
+
+      throw new InternalServerErrorException('Something went wrong');
     }
   }
 
@@ -73,11 +85,39 @@ export class TaskController {
         .status(HttpStatus.OK)
         .json(await this.queryBus.execute(query));
     } catch (e) {
-      return response.status(HttpStatus.BAD_REQUEST).json({
-        error: {
-          message: e.message,
-        },
-      });
+      if (e instanceof NotFoundException) {
+        this.logger.info(e.message);
+
+        throw e;
+      }
+
+      this.logger.error(e.message);
+
+      throw new InternalServerErrorException('Something went wrong');
+    }
+  }
+
+  @Get('report/:id')
+  async getTaskReport(
+    @Param() { id }: GetTaskReportDto,
+    @Res() response: Response,
+  ) {
+    try {
+      const query = new GetTaskReportQuery(id);
+
+      return response
+        .status(HttpStatus.OK)
+        .json(await this.queryBus.execute(query));
+    } catch (e) {
+      if (e instanceof NotFoundException) {
+        this.logger.info(e.message);
+
+        throw e;
+      }
+
+      this.logger.error(e.message);
+
+      throw new InternalServerErrorException('Something went wrong');
     }
   }
 }

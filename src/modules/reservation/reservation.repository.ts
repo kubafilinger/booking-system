@@ -1,7 +1,7 @@
 import { InjectModel } from '@nestjs/mongoose';
 import { ReservationModel } from './models/reservation.schema';
 import { Model } from 'mongoose';
-import { Reservation, ReservationStatus } from './models/reservation.model';
+import { Reservation, ReservationStatus } from './models/reservation.types';
 
 export class ReservationRepository {
   constructor(

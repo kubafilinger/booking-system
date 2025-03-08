@@ -6,7 +6,7 @@ import {
   IsString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ReservationStatus } from '../models/reservation.model';
+import { ReservationStatus } from '../models/reservation.types';
 
 export class ReservationDto {
   @IsNumberString()

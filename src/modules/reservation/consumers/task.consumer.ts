@@ -26,23 +26,26 @@ export class TaskConsumer extends WorkerHost {
   }
 
   async processTask(data: { taskId: string; filePath: string }) {
-    const {taskId, filePath} = data
+    const { taskId, filePath } = data;
 
     try {
       const command = new ProcessFileCommand(taskId, filePath);
-      
-        this.eventBus.publish(new TaskStatusChangedEvent(taskId, TaskStatus.InProgress))
+
+      this.eventBus.publish(
+        new TaskStatusChangedEvent(taskId, TaskStatus.InProgress),
+      );
 
       await this.commandBus.execute(command);
-      
-      
-      this.eventBus.publish(new TaskStatusChangedEvent(taskId, TaskStatus.Completed))
+
+      this.eventBus.publish(
+        new TaskStatusChangedEvent(taskId, TaskStatus.Completed),
+      );
     } catch (e) {
       this.logger.error(e);
-      
-      this.eventBus.publish(new TaskStatusChangedEvent(taskId, TaskStatus.Failed))
-      // TODO: throw error or what?
-      //todo: update task stataus na failed
+
+      this.eventBus.publish(
+        new TaskStatusChangedEvent(taskId, TaskStatus.Failed),
+      );
     }
   }
 }
