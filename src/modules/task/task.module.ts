@@ -6,6 +6,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { TaskModel, TaskSchema } from './models/task.schema';
 import { GetTaskStatusHandler } from './handlers/get-task-status.handler';
 import { BullModule } from '@nestjs/bullmq';
+import { TaskStatusChangedHandler } from './handlers/task-status-changed.handler';
 
 @Module({
   imports: [
@@ -20,6 +21,6 @@ import { BullModule } from '@nestjs/bullmq';
     ]),
   ],
   controllers: [TaskController],
-  providers: [TaskRepository, UploadTaskHandler, GetTaskStatusHandler],
+  providers: [TaskRepository, UploadTaskHandler, GetTaskStatusHandler, TaskStatusChangedHandler],
 })
 export class TaskModule {}

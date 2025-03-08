@@ -30,9 +30,9 @@ export class UploadTaskHandler implements ICommandHandler<UploadTaskCommand> {
     await this.tasksQueue.add('task', {
       taskId: task.id,
       filePath: file.path,
+    }, {
+      backoff: 3
     });
-
-    this.logger.info('Sent on queue');
 
     return task.id;
   }
